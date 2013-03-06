@@ -1,0 +1,3 @@
+int id buttonstart 0x7f030001
+int id surface_camera 0x7f030000
+int layout video_layout 0x7f020000

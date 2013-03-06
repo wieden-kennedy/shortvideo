@@ -1,0 +1,42 @@
+[
+    {
+        "do": {
+            "android_add_activity": {
+                "activity_name": "io.trigger.forge.android.shortvideo.activity.VideoRecorder",
+                "attributes": {
+                    "android:screenOrientation": "portrait"
+                }
+            }
+        }
+    },
+    {
+        "do": {
+            "android_add_permission": {
+                "permission": "android.permission.CAMERA"
+            }
+        }
+    },
+    {
+        "do": {
+            "android_add_permission": {
+                "permission": "android.permission.RECORD_AUDIO"
+            }
+        }
+    },
+    {
+        "do": {
+            "android_add_feature": {
+                "feature": "android.hardware.camera",
+                "required": "true"
+            }
+        }
+    },
+    {
+        "do": {
+            "android_add_feature": {
+                "feature": "android.hardware.microphone",
+                "required": "true"
+            }
+        }
+    }
+]

@@ -3,12 +3,13 @@ package io.trigger.forge.android.shortvideo.activity;
 import io.trigger.forge.android.core.ForgeApp;
 import io.trigger.forge.android.core.ForgeLog;
 import io.trigger.forge.android.modules.shortvideo.API;
+import io.trigger.forge.android.shortvideo.net.CustomMultipartEntity;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.Random;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.net.SocketTimeoutException;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -34,6 +35,15 @@ import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.conn.ConnectTimeoutException;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.StringBody;
+import org.apache.http.impl.client.DefaultHttpClient;
+
 public class VideoRecorder extends Activity implements SurfaceHolder.Callback {	
 	private SurfaceHolder mSurfaceHolder;
     private SurfaceView mSurfaceView;
@@ -49,6 +59,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
     
     private File mVideo;
     private Camera mCamera;
+    long mUploadSize;
 
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -100,7 +111,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		
 		mStartButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
-				if (!mRecording && mVideo == null) {
+				if (!mRecording) {
 					try {				
 						stopPlaying();
 						startRecording();
@@ -110,8 +121,6 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 						mRecording = false;
 						e.printStackTrace();
 					}
-				} else if (mVideo != null) {
-					uploadVideo();					
 				}
 			}
 			
@@ -359,8 +368,14 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 						}
 					}					
 				});
+				
 				Bitmap buttonText = BitmapFactory.decodeResource(getResources(), ForgeApp.getResourceId("upload", "drawable"));		
 				mStartButton.setImageBitmap(Bitmap.createScaledBitmap(buttonText, buttonText.getWidth()/2, buttonText.getHeight()/2, false));
+				mStartButton.setOnClickListener(new OnClickListener() {
+					public void onClick(View v) {
+						uploadVideo();
+					}					
+				});
 				buttonText.recycle();
 				buttonText = null;
 			}
@@ -392,7 +407,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
         camera.setDisplayOrientation(result);
     }
     
-    private class UploadTask extends AsyncTask<File, Integer, URL> {
+    private class UploadTask extends AsyncTask<File, Integer, Boolean> {
         @Override
         protected void onPreExecute() {   
         	mUploading = true;
@@ -405,35 +420,63 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
         }
 
         @Override
-        protected URL doInBackground(File... files) {	
-        	for (int i =0; i<100; i++) {        		
-        		try {
-					Thread.sleep(100);
-					publishProgress(i);
-				} catch (InterruptedException e) {					
-					e.printStackTrace();
-				}        		        		
-        	}
-        	Random r = new Random();
-        	if (r.nextBoolean()) {
-        		try {
-					return new URL("http://www.google.com");
-				} catch (MalformedURLException e) {					
-					e.printStackTrace();
-				}
-    		}
-        	return null;    		
+        protected Boolean doInBackground(File... files) {	
+			Intent intent = getIntent();
+			String category = intent.getStringExtra("category");
+			String token = intent.getStringExtra("token");
+
+			try {
+				CustomMultipartEntity entity = new CustomMultipartEntity(
+						new CustomMultipartEntity.ProgressListener() {
+							public void transferred(long transferred) {
+								publishProgress((int) ((transferred / (float) mUploadSize) * 100));
+							}
+
+						});
+
+				HttpClient httpclient = new DefaultHttpClient();
+				HttpPost httppost = new HttpPost(API.UPLOAD_URL);
+				httppost.addHeader("X-Token", token);
+
+				// add json data
+				entity.addPart("term", new StringBody(category));
+				entity.addPart("file", new FileBody(mVideo));
+
+				mUploadSize = entity.getContentLength();
+				httppost.setEntity(entity);
+
+				HttpResponse response = httpclient.execute(httppost);
+				InputStream inputStream = response.getEntity().getContent();
+				java.util.Scanner s = new java.util.Scanner(inputStream).useDelimiter("\\A");
+			    ForgeLog.d(s.next());
+			}
+			// show error if connection not working
+			catch (SocketTimeoutException e) {
+				e.printStackTrace();
+				return false;
+			}
+
+			catch (ConnectTimeoutException e) {
+				e.printStackTrace();
+				return false;
+			}
+
+			catch (Exception e) {
+				e.printStackTrace();
+				return false;
+			}
+			return true;
         }
 
         @Override
-        protected void onProgressUpdate(Integer... progress) {
+        protected void onProgressUpdate(Integer... progress) {         
+            mUploadProgress.setProgress(progress[0]);
             super.onProgressUpdate(progress);
-            mUploadProgress.setProgress(progress[0]);            
         }
                         
         @Override
-        protected void onPostExecute(URL result) {        	
-        	if (result != null) {
+        protected void onPostExecute(Boolean result) {        	
+        	if (result) {
         		onUploadSuccess();
         	} else {
         		onUploadFailure();

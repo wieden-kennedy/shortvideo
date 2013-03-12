@@ -16,10 +16,15 @@ import io.trigger.forge.android.shortvideo.activity.VideoRecorder;
 
 public class API {
 	public static String VIDEO_KEY = "shortvideo";
-	public static String UPLOAD_URL = "http://uploadbin.net/";
+	public static String UPLOAD_URL = "http://ec2-184-169-189-88.us-west-1.compute.amazonaws.com:8000/api/clip/";
+	public static String TOKEN = "9a6d03ec4a67db7db0ec70f4c7ce636d";
+    public static String CATEGORY = "Introduction";
 	
 	public static void launch(final ForgeTask task, @ForgeParam("category") String category, @ForgeParam("token") String token) {
 		Intent intent = new Intent(ForgeApp.getActivity(), VideoRecorder.class);
+		intent.putExtra("category", CATEGORY);
+		intent.putExtra("token", TOKEN);
+		
 		ForgeApp.intentWithHandler(intent, new ForgeIntentResultHandler() {
 			@Override
 			public void result(int requestCode, int resultCode, Intent data) {

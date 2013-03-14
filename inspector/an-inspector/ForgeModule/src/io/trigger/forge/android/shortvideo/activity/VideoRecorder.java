@@ -215,6 +215,22 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 				finish();
 			}
 		});
+		initRedoButton();
+		
+		// let's get out of here
+		Runnable goHome = new Runnable() {
+			public void run() {
+				makeResult();
+				cleanUp();
+				try {
+					Thread.sleep(1000);
+					finish();				
+				} catch (InterruptedException e) {
+					finish();				
+				}				
+			}			
+		};
+		new Thread(goHome).run();
 	}
 
 	@SuppressLint({ "InlinedApi", "NewApi" })

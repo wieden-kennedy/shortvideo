@@ -20,12 +20,13 @@ public final class R {
         public static final int grid=0x7f020001;
         public static final int progress=0x7f020002;
         public static final int record=0x7f020003;
-        public static final int redo=0x7f020004;
-        public static final int returnbtn=0x7f020005;
-        public static final int successbtn=0x7f020006;
-        public static final int tryagain=0x7f020007;
-        public static final int upload=0x7f020008;
-        public static final int uploading=0x7f020009;
+        public static final int recording=0x7f020004;
+        public static final int redo=0x7f020005;
+        public static final int returnbtn=0x7f020006;
+        public static final int successbtn=0x7f020007;
+        public static final int tryagain=0x7f020008;
+        public static final int upload=0x7f020009;
+        public static final int uploading=0x7f02000a;
     }
     public static final class id {
         public static final int button_container=0x7f050001;

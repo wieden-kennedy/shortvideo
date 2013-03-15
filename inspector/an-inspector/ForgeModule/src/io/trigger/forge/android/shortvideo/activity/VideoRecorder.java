@@ -20,6 +20,7 @@ import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
 import android.media.AudioManager;
+import android.media.CamcorderProfile;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.net.Uri;
@@ -223,7 +224,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 				makeResult();
 				cleanUp();
 				try {
-					Thread.sleep(1000);
+					Thread.sleep(250);
 					finish();				
 				} catch (InterruptedException e) {
 					finish();				
@@ -253,12 +254,8 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 
 					mRecorder.setPreviewDisplay(mSurfaceHolder.getSurface());
 					mRecorder.setMaxDuration(1000);
-
-					mRecorder
-					.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-					mRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-					mRecorder
-					.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
+					
+					mRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
 					final Timer progressBarAdvancer = new Timer();
 
 					setButtonText("recording", mStartButton);
@@ -305,7 +302,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 							ForgeLog.d("failed to create directory");
 						}
 					}
-					mVideo = File.createTempFile("shortvideo", ".mp4",
+					mVideo = File.createTempFile("zzzz", ".mp4",
 							mediaStorageDir);
 
 					mRecorder.setOutputFile(mVideo.getAbsolutePath());
@@ -398,15 +395,16 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		mVideo = null;
 		finish();
 	}
-
-	@SuppressLint("NewApi")
+	
+	@SuppressLint("InlinedApi")
 	private void initCamera() {
 		mCamera = Camera.open();
 		setCameraDisplayOrientation(ForgeApp.getActivity(), 0, mCamera);
 		try {
 			mCamera.setPreviewDisplay(mSurfaceHolder);
-			Parameters parameters = mCamera.getParameters();
-			parameters.setFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
+			Parameters parameters = mCamera.getParameters();		
+			parameters.setFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);		
+			
 			mCamera.setParameters(parameters);
 			mCamera.startPreview();
 		} catch (IOException e) {
@@ -489,7 +487,6 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			Intent intent = getIntent();
 			String term = intent.getStringExtra("term");
 			String token = intent.getStringExtra("token");
-
 			try {
 				CustomMultipartEntity entity = new CustomMultipartEntity(
 						new CustomMultipartEntity.ProgressListener() {

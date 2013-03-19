@@ -5,7 +5,7 @@ int drawable button 0x7f020000
 int drawable grid 0x7f020001
 int drawable progress 0x7f020002
 int drawable record 0x7f020003
-int drawable recording 0x7f020004
+int drawable recordingtxt 0x7f020004
 int drawable redo 0x7f020005
 int drawable returnbtn 0x7f020006
 int drawable successbtn 0x7f020007

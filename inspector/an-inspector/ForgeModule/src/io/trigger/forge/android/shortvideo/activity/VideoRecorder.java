@@ -475,7 +475,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		protected void onPreExecute() {			
 			mUploadProgress.setProgress(0);
 			mUploadProgress.setSecondaryProgress(0);			
-			setButtonText("recording", mStartButton);
+			setButtonText("recordingtxt", mStartButton);
 
 			if (mCamera == null) {
 				initCamera();

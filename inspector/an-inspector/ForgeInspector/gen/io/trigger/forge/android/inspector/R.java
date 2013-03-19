@@ -20,7 +20,7 @@ public final class R {
         public static final int grid=0x7f020001;
         public static final int progress=0x7f020002;
         public static final int record=0x7f020003;
-        public static final int recording=0x7f020004;
+        public static final int recordingtxt=0x7f020004;
         public static final int redo=0x7f020005;
         public static final int returnbtn=0x7f020006;
         public static final int successbtn=0x7f020007;

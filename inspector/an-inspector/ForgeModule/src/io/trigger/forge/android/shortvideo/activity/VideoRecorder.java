@@ -9,8 +9,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketTimeoutException;
-import java.util.Timer;
-import java.util.TimerTask;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -27,6 +25,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -58,6 +57,8 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 	private boolean mRecording;
 	private boolean mUploading;
 
+	private Handler mHandler;
+
 	private File mVideo;
 	private Camera mCamera;
 	long mUploadSize;
@@ -68,6 +69,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
 				WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
+		mHandler = new Handler();
 		mRecorder = new MediaRecorder();
 		mPlayer = new MediaPlayer();
 
@@ -91,7 +93,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 						ForgeApp.getResourceId("progress", "drawable")));
 	}
 
-	
+
 	private void setButtonText(String resource, ImageButton button) {
 		Bitmap buttonText = BitmapFactory.decodeResource(getResources(),
 				ForgeApp.getResourceId(resource, "drawable"));
@@ -99,13 +101,15 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 				buttonText.getWidth() / 2, buttonText.getHeight() / 2, false));
 		buttonText.recycle();
 	}
-	
+
 	private void initStartButton() {
 		mStartButton = (ImageButton) findViewById(ForgeApp.getResourceId(
 				"buttonstart", "id"));
 		setButtonText("record", mStartButton);
 		mStartButton.setBackgroundColor(android.graphics.Color.TRANSPARENT);
 
+		mUploadProgress.setSecondaryProgress(0);
+		mUploadProgress.setProgress(100);
 		mStartButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
 				if (!mRecording) {
@@ -217,7 +221,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			}
 		});
 		initRedoButton();
-		
+
 		// let's get out of here
 		Runnable goHome = new Runnable() {
 			public void run() {
@@ -236,102 +240,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 
 	@SuppressLint({ "InlinedApi", "NewApi" })
 	private void startRecording() throws IOException {
-		mUploadProgress.setProgress(100);
-		mUploadProgress.setSecondaryProgress(0);
-
-		if (mCamera == null) {
-			initCamera();
-		}
-		mCamera.unlock();
-		Runnable r = new Runnable() {
-			public void run() {
-				try {
-					mRecorder = new MediaRecorder();
-					mRecorder.setCamera(mCamera);
-					mRecorder
-					.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
-					mRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
-
-					mRecorder.setPreviewDisplay(mSurfaceHolder.getSurface());
-					mRecorder.setMaxDuration(1000);
-					
-					mRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
-					final Timer progressBarAdvancer = new Timer();
-
-					setButtonText("recording", mStartButton);
-
-					mRecorder
-					.setOnInfoListener(new MediaRecorder.OnInfoListener() {
-						public void onInfo(MediaRecorder mr, int what,
-								int extra) {
-							if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
-								stopRecording();
-								progressBarAdvancer.cancel();
-								mUploadProgress.setSecondaryProgress(0);
-								mUploadProgress.setProgress(100);
-
-								playVideo();
-								mRedoButton
-								.setBackgroundResource(ForgeApp
-										.getResourceId(
-												"drkblue",
-												"color"));
-								mRedoButton
-								.setOnClickListener(new OnClickListener() {
-									public void onClick(View v) {
-										onRedo();
-									}
-								});
-								setButtonText("upload", mStartButton);
-								mStartButton
-								.setOnClickListener(new OnClickListener() {
-									public void onClick(View v) {
-										uploadVideo();
-									}
-								});
-							}
-						}
-					});
-
-					File mediaStorageDir = new File(
-							Environment
-							.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
-							"ShortVideo");
-					if (!mediaStorageDir.exists()) {
-						if (!mediaStorageDir.mkdirs()) {
-							ForgeLog.d("failed to create directory");
-						}
-					}
-					mVideo = File.createTempFile("zzzz", ".mp4",
-							mediaStorageDir);
-
-					mRecorder.setOutputFile(mVideo.getAbsolutePath());
-					mRecorder.setPreviewDisplay(mSurfaceHolder.getSurface());
-					mRecorder.setOrientationHint(90);
-					mRecorder.prepare();
-					mRecorder.start();
-					mUploadProgress.setProgress(0);
-					mUploadProgress.setSecondaryProgress(0);
-
-					progressBarAdvancer.scheduleAtFixedRate(new TimerTask() {
-						public void run() {
-							mUploadProgress
-							.setSecondaryProgress(mUploadProgress
-									.getSecondaryProgress() + 100 / 10);
-							if (mUploadProgress.getSecondaryProgress() >= 100) {
-							}
-						}
-					}, 0, 100);
-				} catch (IllegalStateException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-		};
-		new Thread(r).run();
+		new RecordTask().execute();		
 	}
 
 	private void stopRecording() {
@@ -360,7 +269,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
 			mPlayer.setDataSource(mVideo.getAbsolutePath());
 			mPlayer.setDisplay(mSurfaceHolder);
-			mPlayer.setLooping(true);
+			mPlayer.setLooping(true);			
 			mPlayer.prepare();
 			new Thread(startVideo).run();
 		} catch (IllegalArgumentException e) {
@@ -395,18 +304,17 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		mVideo = null;
 		finish();
 	}
-	
-	@SuppressLint("InlinedApi")
+
+	@SuppressLint({ "InlinedApi", "NewApi"})
 	private void initCamera() {
 		mCamera = Camera.open();
 		setCameraDisplayOrientation(ForgeApp.getActivity(), 0, mCamera);
 		try {
 			mCamera.setPreviewDisplay(mSurfaceHolder);
-			Parameters parameters = mCamera.getParameters();		
-			parameters.setFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);		
-			
+			Parameters parameters = mCamera.getParameters();
+			parameters.setFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
 			mCamera.setParameters(parameters);
-			mCamera.startPreview();
+			mCamera.startPreview();			
 		} catch (IOException e) {
 			e.printStackTrace();
 			mCamera.release();
@@ -487,6 +395,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			Intent intent = getIntent();
 			String term = intent.getStringExtra("term");
 			String token = intent.getStringExtra("token");
+
 			try {
 				CustomMultipartEntity entity = new CustomMultipartEntity(
 						new CustomMultipartEntity.ProgressListener() {
@@ -499,7 +408,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 				HttpClient httpclient = new DefaultHttpClient();
 				HttpPost httppost = new HttpPost(API.UPLOAD_URL);
 				httppost.addHeader("X-Token", token);
-				
+
 				entity.addPart("term", new StringBody(term));
 				entity.addPart("file", new FileBody(mVideo));
 
@@ -545,5 +454,107 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			}
 			mUploading = false;
 		}
+	}
+
+	private class RecordTask extends AsyncTask<Void, Void, Void> {
+		final Runnable progressUpdate = new Runnable() {
+			public void run() {
+				mUploadProgress
+				.setSecondaryProgress(mUploadProgress
+						.getSecondaryProgress() + 100 / 10);
+				if (mUploadProgress.getSecondaryProgress() >= 100) {
+					return;
+				}
+				mHandler.postDelayed(this, 100);
+			}
+
+		};
+
+		@SuppressLint("NewApi")
+		@Override				
+		protected void onPreExecute() {			
+			mUploadProgress.setProgress(0);
+			mUploadProgress.setSecondaryProgress(0);			
+			setButtonText("recording", mStartButton);
+
+			if (mCamera == null) {
+				initCamera();
+			}
+			mCamera.unlock();
+			mRecorder = new MediaRecorder();
+			mRecorder.setCamera(mCamera);
+		}
+
+		@SuppressLint("NewApi")
+		@Override
+		protected Void doInBackground(Void... arg0) {
+
+			mRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+			mRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+			mRecorder.setPreviewDisplay(mSurfaceHolder.getSurface());
+			mRecorder.setMaxDuration(1000);
+
+			CamcorderProfile profile;
+			if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_720P)) {
+				profile = CamcorderProfile.get(CamcorderProfile.QUALITY_720P);
+			} else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_480P)) {
+				profile = CamcorderProfile.get(CamcorderProfile.QUALITY_480P);
+			} else {
+				profile = CamcorderProfile.get(CamcorderProfile.QUALITY_LOW);
+			}
+
+			mRecorder.setProfile(profile);
+			mRecorder.setOnInfoListener(new MediaRecorder.OnInfoListener() {
+				public void onInfo(MediaRecorder mr, int what, int extra) {
+					if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
+						stopRecording();
+						mHandler.removeCallbacks(progressUpdate);
+						mUploadProgress.setSecondaryProgress(0);
+						mUploadProgress.setProgress(100);
+
+						playVideo();
+						mRedoButton.setBackgroundResource(ForgeApp
+								.getResourceId("drkblue", "color"));
+						mRedoButton.setOnClickListener(new OnClickListener() {
+							public void onClick(View v) {
+								onRedo();
+							}
+						});
+						setButtonText("upload", mStartButton);
+						mStartButton.setOnClickListener(new OnClickListener() {
+							public void onClick(View v) {
+								uploadVideo();
+							}
+						});
+					}
+				}
+			});
+
+			File mediaStorageDir = new File(
+					Environment
+							.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
+					"ShortVideo");
+			if (!mediaStorageDir.exists()) {
+				if (!mediaStorageDir.mkdirs()) {
+					ForgeLog.d("failed to create directory");
+				}
+			}
+			try {
+				mVideo = File.createTempFile("zzzz", ".mp4", mediaStorageDir);
+				mRecorder.setOutputFile(mVideo.getAbsolutePath());
+				mRecorder.setPreviewDisplay(mSurfaceHolder.getSurface());	
+				mRecorder.setOrientationHint(90);
+				mRecorder.prepare();
+				mRecorder.start();
+				mHandler.post(progressUpdate);
+			} catch (IllegalStateException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+			}
+			return null;
+		}
+
 	}
 }

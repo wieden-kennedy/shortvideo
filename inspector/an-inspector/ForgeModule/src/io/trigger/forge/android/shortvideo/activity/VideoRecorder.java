@@ -2,7 +2,8 @@ package io.trigger.forge.android.shortvideo.activity;
 
 import io.trigger.forge.android.core.ForgeApp;
 import io.trigger.forge.android.core.ForgeLog;
-import io.trigger.forge.android.modules.shortvideo.API;
+import io.trigger.forge.android.modules.shortvideo.util.ShortVideoScanner;
+import io.trigger.forge.android.modules.shortvideo_and.API;
 import io.trigger.forge.android.shortvideo.net.CustomMultipartEntity;
 
 import java.io.File;
@@ -17,6 +18,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
+import android.hardware.Camera.Size;
 import android.media.AudioManager;
 import android.media.CamcorderProfile;
 import android.media.MediaPlayer;
@@ -61,6 +63,8 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 
 	private File mVideo;
 	private Camera mCamera;
+	private int mSurfaceWidth, mSurfaceHeight;
+	
 	long mUploadSize;
 
 	public void onCreate(Bundle savedInstanceState) {
@@ -91,6 +95,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		mUploadProgress.setIndeterminateDrawable(getApplicationContext()
 				.getResources().getDrawable(
 						ForgeApp.getResourceId("progress", "drawable")));
+		
 	}
 
 
@@ -109,7 +114,6 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		mStartButton.setBackgroundColor(android.graphics.Color.TRANSPARENT);
 
 		mUploadProgress.setSecondaryProgress(0);
-		mUploadProgress.setProgress(100);
 		mStartButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
 				if (!mRecording) {
@@ -126,6 +130,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			}
 
 		});
+		mUploadProgress.setProgress(100);
 	}
 
 	private void initRedoButton() {
@@ -156,7 +161,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		});
 	}
 
-	private void onRedo() {
+	private void onRedo() {		
 		stopPlaying();
 		initStartButton();
 		initRedoButton();
@@ -166,12 +171,13 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 	public void onResume() {
 		super.onResume();
 		mRecording = false;
-		mSurfaceHolder = mSurfaceView.getHolder();
+		mSurfaceHolder = mSurfaceView.getHolder();		
 		mSurfaceHolder.addCallback(this);
-
+		
 		initStartButton();
 		initRedoButton();
 		initReturnButton();
+		mUploadProgress.setProgress(100);
 	}
 
 	private void uploadVideo() {
@@ -183,15 +189,13 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 
 	public void surfaceChanged(SurfaceHolder holder, int format, int width,
 			int height) {
+		
+		mSurfaceWidth = width;
+		mSurfaceHeight = height;
+		initCamera();
 	}
 
-	public void surfaceCreated(SurfaceHolder holder) {
-		initCamera();
-		try {
-			mCamera.setPreviewDisplay(mSurfaceHolder);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+	public void surfaceCreated(SurfaceHolder holder) {		
 	}
 
 	public void surfaceDestroyed(SurfaceHolder holder) {
@@ -254,6 +258,8 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			mCamera.lock();
 			mCamera.release();
 		}
+		if (mVideo != null) {	
+		}
 		mCamera = null;
 		mRecording = false;
 	}
@@ -312,8 +318,10 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		try {
 			mCamera.setPreviewDisplay(mSurfaceHolder);
 			Parameters parameters = mCamera.getParameters();
+			Size size = getBestPreviewSize(mSurfaceWidth, mSurfaceHeight, parameters);
+			parameters.setPreviewSize(size.width,size.height);
 			parameters.setFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
-			mCamera.setParameters(parameters);
+			mCamera.setParameters(parameters);			
 			mCamera.startPreview();			
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -346,6 +354,26 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 		if (mVideo != null) {
 			mVideo = null;
 		}
+	}
+	
+	private Camera.Size getBestPreviewSize(final int width, final int height, final Parameters parameters) {
+		Camera.Size result = null;
+
+		for (Camera.Size size : parameters.getSupportedPreviewSizes()) {
+			if (size.width <= width && size.height <= height) {
+				if (result == null) {
+					result = size;
+				} else {
+					int resultArea = result.width * result.height;
+					int newArea = size.width * size.height;
+
+					if (newArea > resultArea) {
+						result = size;
+					}
+				}
+			}
+		}
+		return (result);
 	}
 
 	@SuppressLint("NewApi")
@@ -395,7 +423,7 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			Intent intent = getIntent();
 			String term = intent.getStringExtra("term");
 			String token = intent.getStringExtra("token");
-
+			
 			try {
 				CustomMultipartEntity entity = new CustomMultipartEntity(
 						new CustomMultipartEntity.ProgressListener() {
@@ -404,7 +432,6 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 							}
 
 						});
-
 				HttpClient httpclient = new DefaultHttpClient();
 				HttpPost httppost = new HttpPost(API.UPLOAD_URL);
 				httppost.addHeader("X-Token", token);
@@ -467,7 +494,6 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 				}
 				mHandler.postDelayed(this, 100);
 			}
-
 		};
 
 		@SuppressLint("NewApi")
@@ -485,22 +511,26 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			mRecorder.setCamera(mCamera);
 		}
 
-		@SuppressLint("NewApi")
+		@SuppressLint({ "InlinedApi", "NewApi" })
 		@Override
 		protected Void doInBackground(Void... arg0) {
-
 			mRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
 			mRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
 			mRecorder.setPreviewDisplay(mSurfaceHolder.getSurface());
 			mRecorder.setMaxDuration(1000);
 
 			CamcorderProfile profile;
-			if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_720P)) {
-				profile = CamcorderProfile.get(CamcorderProfile.QUALITY_720P);
-			} else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_480P)) {
-				profile = CamcorderProfile.get(CamcorderProfile.QUALITY_480P);
-			} else {
-				profile = CamcorderProfile.get(CamcorderProfile.QUALITY_LOW);
+			int currentapiVersion = android.os.Build.VERSION.SDK_INT;
+			if (currentapiVersion >= android.os.Build.VERSION_CODES.HONEYCOMB){
+				if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_720P)) {
+					profile = CamcorderProfile.get(CamcorderProfile.QUALITY_720P);
+				} else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_480P)) {
+					profile = CamcorderProfile.get(CamcorderProfile.QUALITY_480P);
+				} else {
+					profile = CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH);
+				} 
+			} else{
+				profile = CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH);
 			}
 
 			mRecorder.setProfile(profile);
@@ -511,7 +541,14 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 						mHandler.removeCallbacks(progressUpdate);
 						mUploadProgress.setSecondaryProgress(0);
 						mUploadProgress.setProgress(100);
-
+						
+						Runnable scan = new Runnable() {
+							public void run() {
+								new ShortVideoScanner(ForgeApp.getActivity().getApplicationContext(), mVideo);
+							}							
+						};						
+						new Thread(scan).start();
+						
 						playVideo();
 						mRedoButton.setBackgroundResource(ForgeApp
 								.getResourceId("drkblue", "color"));
@@ -533,14 +570,14 @@ public class VideoRecorder extends Activity implements SurfaceHolder.Callback {
 			File mediaStorageDir = new File(
 					Environment
 							.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
-					"ShortVideo");
+					"OneSecond");
 			if (!mediaStorageDir.exists()) {
 				if (!mediaStorageDir.mkdirs()) {
 					ForgeLog.d("failed to create directory");
 				}
 			}
 			try {
-				mVideo = File.createTempFile("zzzz", ".mp4", mediaStorageDir);
+				mVideo = File.createTempFile("onesecond", ".mp4", mediaStorageDir);
 				mRecorder.setOutputFile(mVideo.getAbsolutePath());
 				mRecorder.setPreviewDisplay(mSurfaceHolder.getSurface());	
 				mRecorder.setOrientationHint(90);

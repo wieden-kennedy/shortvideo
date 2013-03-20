@@ -7,5 +7,6 @@
 	"platform_version": "default",
 	"modules": {
 		"inspector": true
+		"shortvideo_and":true
 	}
 }

@@ -1,4 +1,4 @@
-package io.trigger.forge.android.modules.shortvideo;
+package io.trigger.forge.android.modules.shortvideo_and;
 
 import com.google.gson.JsonNull;
 

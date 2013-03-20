@@ -2,6 +2,6 @@
   "modules": [
     "inspector", 
     "alert", 
-    "shortvideo"
+    "shortvideo_and"
   ]
 }
